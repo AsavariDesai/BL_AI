@@ -1,0 +1,26 @@
+{
+  "name": "bl-ai",
+  "private": true,
+  "version": "0.3.0",
+  "description": "Local AI Bill of Lading reader — OCR + KIE, no cloud. Monorepo (backend + frontend).",
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "start": "npm run dev",
+    "predev": "node scripts/ensure-setup.mjs",
+    "dev": "concurrently --kill-others-on-fail -n api,web,open -c blue,green,magenta \"npm:dev:api\" \"npm:dev:web\" \"node scripts/open-when-ready.mjs\"",
+    "dev:api": "node scripts/py.mjs -m uvicorn app.api:app --reload --port 8000",
+    "dev:web": "npm run dev -w frontend",
+    "build": "npm run build -w frontend",
+    "preview:web": "npm run preview -w frontend",
+    "test": "npm run test:api && npm run test:web",
+    "test:api": "node scripts/py.mjs -m pytest",
+    "test:web": "npm run test -w frontend",
+    "cli": "node scripts/py.mjs -m app.cli"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

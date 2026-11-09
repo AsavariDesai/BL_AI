@@ -1,0 +1,33 @@
+# --- core ---
+pymupdf>=1.24
+pydantic>=2.7
+python-dotenv>=1.0
+rapidfuzz>=3.9
+Pillow>=10.3
+numpy>=1.26
+
+# --- API (Step 2) ---
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+openpyxl>=3.1
+
+# --- Windows Server hosting: run the API as a native Windows Service
+# (windows_service.py). Prebuilt wheel, no compiler needed. Skipped
+# automatically by pip on non-Windows. ---
+pywin32>=306; sys_platform == "win32"
+
+# --- local OCR backend for scanned pages ---
+# RapidOCR = PaddleOCR models packaged as ONNX. Pure pip, CPU, no system deps.
+rapidocr-onnxruntime>=1.3.24
+
+# --- optional alternative OCR backends (not installed by default) ---
+# pytesseract>=0.3.13     # also needs the Tesseract 5 binary on PATH
+# paddleocr>=2.7 ; paddlepaddle>=2.6   # full PaddleOCR + PP-Structure (tables)
+
+# --- KIE training (Tier B, add when you start fine-tuning) ---
+# torch>=2.2
+# transformers>=4.44
+# datasets>=2.20
+# peft>=0.12
+# seqeval>=1.2

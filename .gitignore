@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+
+# App data & secrets
+data/
+.env
+*.local
+
+# Editors / OS
+.DS_Store
+*.log
+
+# Local backups (not for source control)
+backups/

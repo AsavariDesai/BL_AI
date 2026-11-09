@@ -1,0 +1,22 @@
+# Optional reverse proxy + automatic HTTPS in front of the BL-AI backend.
+# Caddy for Windows: https://caddyserver.com/docs/install#windows  -  single
+# binary, no IIS needed. Copy this file to Caddyfile next to caddy.exe and
+# edit the two placeholders below.
+#
+# Run manually to test:   caddy.exe run --config Caddyfile
+# Run at boot: a Task Scheduler task (Trigger: At startup, Action: caddy.exe
+# run --config C:\caddy\Caddyfile, Run as: SYSTEM, "Run whether user is
+# logged on or not")  -  caddy.exe is not service-aware on its own.
+#
+# If your org requires IIS instead, use IIS with the Application Request
+# Routing (ARR) + URL Rewrite modules as a reverse proxy to
+# http://127.0.0.1:8000, and terminate TLS in IIS as usual; see
+# docs/WINDOWS_DEPLOYMENT.md for the outline.
+
+bl-ai.your-internal-domain.example {
+	reverse_proxy 127.0.0.1:8000
+}
+
+# After switching to HTTPS at the proxy, set COOKIE_SECURE=1 in backend\.env
+# and restart the BLAIBackend service  -  browsers drop Secure cookies over
+# plain HTTP, so this must stay off until TLS is actually in front of it.

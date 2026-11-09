@@ -1,0 +1,14 @@
+[project]
+name = "bl-ai-backend"
+version = "0.3.0"
+description = "Local OCR + KIE Bill of Lading extraction service"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
