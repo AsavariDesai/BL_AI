@@ -99,6 +99,12 @@ CREATE TABLE IF NOT EXISTS users (
   -- always sees both, same as it ignores per-record ownership elsewhere.
   can_export    INTEGER NOT NULL DEFAULT 1,
   can_import    INTEGER NOT NULL DEFAULT 1,
+  -- Brute-force lockout: failed_login_attempts resets to 0 on any successful
+  -- login (or an admin password reset); on reaching auth.MAX_FAILED_LOGINS,
+  -- locked_until is set and login is refused until that time passes, no
+  -- admin action needed.
+  failed_login_attempts  INTEGER NOT NULL DEFAULT 0,
+  locked_until            TEXT,
   created_at    TEXT NOT NULL
 );
 
@@ -303,6 +309,9 @@ _MIGRATIONS = [
     # of Lading / Shipping Bill belongs directly to one Company (Export has
     # no Vessel tier), the same way Import documents belong to a Vessel.
     ("documents", "company_id", "TEXT"),
+    # Brute-force lockout (see the matching note on the users CREATE TABLE).
+    ("users", "failed_login_attempts", "INTEGER NOT NULL DEFAULT 0"),
+    ("users", "locked_until", "TEXT"),
 ]
 
 # Indexes on a column that's added via _MIGRATIONS (rather than always being

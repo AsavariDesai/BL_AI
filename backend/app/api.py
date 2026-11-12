@@ -211,8 +211,21 @@ def _log(
 @app.post("/auth/login", response_model=UserOut)
 def login(body: LoginIn, response: Response) -> UserOut:
     row = repo.get_user_by_username(body.username)
+    if row is not None:
+        remaining = auth.lockout_remaining(row)
+        if remaining > 0:
+            raise HTTPException(
+                423,
+                f"Too many failed login attempts. Try again in "
+                f"{max(1, round(remaining / 60))} minute(s).",
+            )
     if row is None or not auth.verify_password(body.password, row["password_hash"]):
+        # Same generic message either way — this never reveals whether the
+        # username itself exists, only (via the 423 above) that it's locked.
+        if row is not None:
+            auth.register_failed_login(row["id"])
         raise HTTPException(401, "Invalid username or password")
+    repo.clear_failed_logins(row["id"])
     token = auth.create_session(row["id"])
     response.set_cookie(
         auth.SESSION_COOKIE, token,
@@ -297,6 +310,7 @@ def update_user(user_id: str, body: UserUpdateIn, request: Request) -> UserAdmin
             raise HTTPException(400, "Password must be at least 8 characters.")
         repo.set_user_password(user_id, auth.hash_password(body.password))
         repo.delete_sessions_for_user(user_id)  # force re-login everywhere
+        repo.clear_failed_logins(user_id)  # a password reset also lifts any lockout
     return _user_admin_out(repo.get_user(user_id))
 
 

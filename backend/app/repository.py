@@ -472,6 +472,33 @@ def set_user_password(user_id: str, password_hash: str) -> None:
         )
 
 
+def register_failed_login(user_id: str) -> int:
+    """Increments the failed-login counter and returns the new count."""
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE users SET failed_login_attempts = failed_login_attempts + 1 WHERE id = ?",
+            (user_id,),
+        )
+        return conn.execute(
+            "SELECT failed_login_attempts FROM users WHERE id = ?", (user_id,)
+        ).fetchone()["failed_login_attempts"]
+
+
+def lock_user(user_id: str, locked_until: str) -> None:
+    with get_conn() as conn:
+        conn.execute("UPDATE users SET locked_until = ? WHERE id = ?", (locked_until, user_id))
+
+
+def clear_failed_logins(user_id: str) -> None:
+    """Resets the lockout state — called on a successful login or an admin
+    password reset, either of which should let the account in again."""
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?",
+            (user_id,),
+        )
+
+
 # ---------------------------------------------------------------- sessions
 def create_session(*, token: str, user_id: str, created_at: str, expires_at: str) -> None:
     with get_conn() as conn:

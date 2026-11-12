@@ -19,6 +19,12 @@ _PBKDF2_ITERATIONS = 260_000
 _SESSION_TTL = timedelta(days=14)
 SESSION_COOKIE = "bl_session"
 
+# Brute-force lockout: after this many consecutive failed logins, the
+# account is refused (even with the correct password) until LOCKOUT_DURATION
+# passes — no admin action needed to lift it.
+MAX_FAILED_LOGIN_ATTEMPTS = 3
+LOCKOUT_DURATION = timedelta(minutes=5)
+
 
 def hash_password(password: str) -> str:
     salt = secrets.token_hex(16)
@@ -37,6 +43,27 @@ def verify_password(password: str, stored: str) -> bool:
         return hmac.compare_digest(digest.hex(), hex_digest)
     except (ValueError, AttributeError):
         return False
+
+
+def lockout_remaining(row) -> float:
+    """Seconds left on ``row``'s lockout, or 0 if it isn't (or no longer)
+    locked. A lapsed lockout is left for the next successful login to clear
+    (via clear_failed_logins) rather than written back here."""
+    locked_until = row["locked_until"]
+    if not locked_until:
+        return 0.0
+    expires = datetime.fromisoformat(locked_until)
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    remaining = (expires - datetime.now(timezone.utc)).total_seconds()
+    return max(remaining, 0.0)
+
+
+def register_failed_login(user_id: str) -> None:
+    attempts = repo.register_failed_login(user_id)
+    if attempts >= MAX_FAILED_LOGIN_ATTEMPTS:
+        locked_until = datetime.now(timezone.utc) + LOCKOUT_DURATION
+        repo.lock_user(user_id, locked_until.isoformat(timespec="seconds"))
 
 
 def create_session(user_id: str) -> str:
