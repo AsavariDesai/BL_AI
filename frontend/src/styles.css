@@ -347,11 +347,27 @@ body {
   padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
   background: var(--bg); color: var(--text); font-size: 14px;
 }
+.login-password-wrap { position: relative; display: flex; }
+.login-password-wrap input { width: 100%; padding-right: 36px; }
+.login-password-toggle {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; padding: 0; border: none; background: transparent;
+  color: var(--muted); border-radius: 6px; cursor: pointer;
+}
+.login-password-toggle:hover:not(:disabled) { background: var(--line); color: var(--text); }
+.login-password-toggle:disabled { opacity: 0.35; cursor: default; }
 .login-error {
   width: 100%; background: var(--err-bg); color: var(--lo); border-radius: 8px;
   padding: 8px 10px; font-size: 12px; margin-bottom: 12px;
 }
+.login-warning {
+  width: 100%; background: var(--warn-bg); color: var(--mid); border-radius: 8px;
+  padding: 8px 10px; font-size: 12px; margin-bottom: 12px; line-height: 1.4;
+}
+.login-lockout { line-height: 1.4; }
 .login-card .btn { width: 100%; padding: 9px; }
+.login-card .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* ---- Shipping Bills: one expandable card per BL ---- */
 .pdf-banner {
@@ -733,6 +749,16 @@ body {
 .mfield input:focus, .mfield select:focus, .mfield textarea:focus {
   outline: 2px solid var(--accent); border-color: var(--accent);
 }
+.mfield-password-wrap { position: relative; display: flex; }
+.mfield-password-wrap input { width: 100%; padding-right: 34px; }
+.mfield-password-toggle {
+  position: absolute; right: 3px; top: 50%; transform: translateY(-50%);
+  display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0; border: none; background: transparent;
+  color: var(--muted); border-radius: 6px; cursor: pointer;
+}
+.mfield-password-toggle:hover:not(:disabled) { background: var(--line); color: var(--text); }
+.mfield-password-toggle:disabled { opacity: 0.35; cursor: default; }
 .mradio-group { display: flex; gap: 14px; padding-top: 4px; }
 .mradio { display: flex; align-items: center; gap: 5px; font-size: 13px; cursor: pointer; }
 .mcheck {

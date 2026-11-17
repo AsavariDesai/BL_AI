@@ -59,11 +59,18 @@ def lockout_remaining(row) -> float:
     return max(remaining, 0.0)
 
 
-def register_failed_login(user_id: str) -> None:
+def register_failed_login(user_id: str) -> tuple[int, str | None]:
+    """Returns (attempts, locked_until) — locked_until is set (ISO string)
+    only on the attempt that just crossed MAX_FAILED_LOGIN_ATTEMPTS, so the
+    caller can report the lockout immediately rather than waiting for the
+    next login try to discover it."""
     attempts = repo.register_failed_login(user_id)
+    locked_until_iso = None
     if attempts >= MAX_FAILED_LOGIN_ATTEMPTS:
         locked_until = datetime.now(timezone.utc) + LOCKOUT_DURATION
-        repo.lock_user(user_id, locked_until.isoformat(timespec="seconds"))
+        locked_until_iso = locked_until.isoformat(timespec="seconds")
+        repo.lock_user(user_id, locked_until_iso)
+    return attempts, locked_until_iso
 
 
 def create_session(user_id: str) -> str:

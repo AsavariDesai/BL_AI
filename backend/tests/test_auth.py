@@ -67,17 +67,35 @@ def test_expired_session_is_rejected_and_cleaned_up():
         assert repo.get_session("stale-token") is None  # cleaned up on rejection
 
 
-def test_third_wrong_password_locks_the_account(client):
+def test_wrong_password_reports_remaining_attempts(client):
     client.post("/auth/logout")
-    for _ in range(auth.MAX_FAILED_LOGIN_ATTEMPTS):
+    for n in range(1, auth.MAX_FAILED_LOGIN_ATTEMPTS):
+        r = client.post("/auth/login", json={"username": TEST_USERNAME, "password": "wrong"})
+        assert r.status_code == 401
+        detail = r.json()["detail"]
+        assert detail["failed_attempts"] == n
+        assert detail["remaining_attempts"] == auth.MAX_FAILED_LOGIN_ATTEMPTS - n
+
+
+def test_third_wrong_password_locks_the_account_immediately(client):
+    client.post("/auth/logout")
+    for n in range(1, auth.MAX_FAILED_LOGIN_ATTEMPTS):
         r = client.post("/auth/login", json={"username": TEST_USERNAME, "password": "wrong"})
         assert r.status_code == 401
 
-    # the 4th attempt is refused even though the lockout came from bad
-    # guesses, not from this (correct) password
+    # the attempt that *crosses* the threshold is reported as locked right
+    # away — a reviewer shouldn't need one more try to find out it happened
+    third = client.post("/auth/login", json={"username": TEST_USERNAME, "password": "wrong"})
+    assert third.status_code == 423
+    detail = third.json()["detail"]
+    assert "minute" in detail["message"]
+    assert detail["retry_after_seconds"] > 0
+    assert detail["locked_until"]
+
+    # a 4th attempt — even with the *correct* password — is refused too
     locked = client.post("/auth/login", json={"username": TEST_USERNAME, "password": TEST_PASSWORD})
     assert locked.status_code == 423
-    assert "minute" in locked.json()["detail"]
+    assert "minute" in locked.json()["detail"]["message"]
 
 
 def test_lockout_clears_once_it_expires(client):
@@ -96,6 +114,38 @@ def test_lockout_clears_once_it_expires(client):
     row = repo.get_user_by_username(TEST_USERNAME)
     assert row["failed_login_attempts"] == 0
     assert row["locked_until"] is None
+
+
+def test_a_wrong_password_right_after_the_lock_expires_does_not_instantly_relock(client):
+    """Regression: failed_login_attempts used to only reset on a successful
+    login, so once a lockout lapsed, the stale counter (still at the
+    threshold) meant a single wrong guess incremented it straight past the
+    threshold again and re-armed a brand new lockout — making it look like
+    the account "never" unlocks, even though the 5-minute window itself had
+    genuinely passed."""
+    client.post("/auth/logout")
+    for _ in range(auth.MAX_FAILED_LOGIN_ATTEMPTS):
+        client.post("/auth/login", json={"username": TEST_USERNAME, "password": "wrong"})
+    row = repo.get_user_by_username(TEST_USERNAME)
+    assert row["locked_until"] is not None
+
+    expired = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat(timespec="seconds")
+    repo.lock_user(row["id"], expired)
+
+    # a wrong guess right after expiry must be judged as a fresh "1 of 3",
+    # not the 4th strike against the old (stale) counter
+    r = client.post("/auth/login", json={"username": TEST_USERNAME, "password": "still wrong"})
+    assert r.status_code == 401
+    detail = r.json()["detail"]
+    assert detail["failed_attempts"] == 1
+    assert detail["remaining_attempts"] == auth.MAX_FAILED_LOGIN_ATTEMPTS - 1
+
+    row = repo.get_user_by_username(TEST_USERNAME)
+    assert row["locked_until"] is None  # not re-locked by that one guess
+
+    # the correct password now works without waiting out a new lockout
+    ok = client.post("/auth/login", json={"username": TEST_USERNAME, "password": TEST_PASSWORD})
+    assert ok.status_code == 200
 
 
 def test_successful_login_resets_the_failed_counter(client):

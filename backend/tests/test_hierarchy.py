@@ -21,13 +21,13 @@ def test_doc_types_and_catalogs(client):
     # Master BL: real catalog, modeled on the Ocean Network Express ("ONE")
     # Sea Waybill form (see field_catalog.MASTER_BL / parsers.one_masterbl)
     master_fields = client.get("/fields?doc_type=master_bl").json()
-    assert len(master_fields) == 36
-    assert {"bl_number", "booking_number", "shipper", "consignee", "vessel_and_voyage"} \
+    assert len(master_fields) == 37
+    assert {"bl_number", "booking_number", "shipper", "consignee", "vessel_name", "voyage_number"} \
         <= {f["key"] for f in master_fields}
     # House BL: real catalog, modeled on the Yusen Logistics form (see
     # field_catalog.HOUSE_BL / parsers.yusen_hbl)
     house_fields = client.get("/fields?doc_type=house_bl").json()
-    assert len(house_fields) == 45
+    assert len(house_fields) == 46
     assert {"bl_number", "shipper", "consignee", "hs_code"} <= {f["key"] for f in house_fields}
     assert client.get("/fields?doc_type=nonsense").status_code == 400
 

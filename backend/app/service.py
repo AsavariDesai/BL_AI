@@ -204,22 +204,22 @@ def run_extraction(doc_id: str, engine: str | None = None) -> DocumentDetail:
 
 
 def _check_master_vessel_match(vessel_id: str, result, warnings: list[str]) -> list[str]:
-    """Flag a Master BL whose own extracted "Vessel / Voyage" text doesn't
-    name the Vessel Workspace it was uploaded under — a wrong-vessel upload
-    (or an OCR misread) otherwise has no visible signal besides someone
-    noticing the mismatch by eye. Non-blocking: it only surfaces as a
-    warning, the same way an OCR'd-page notice already does.
+    """Flag a Master BL whose own extracted Vessel Name doesn't name the
+    Vessel Workspace it was uploaded under — a wrong-vessel upload (or an
+    OCR misread) otherwise has no visible signal besides someone noticing
+    the mismatch by eye. Non-blocking: it only surfaces as a warning, the
+    same way an OCR'd-page notice already does.
     """
     vessel = repo.get_vessel(vessel_id)
     if vessel is None or not vessel["name"]:
         return warnings
-    value = next((f.value for f in result.fields if f.key == "vessel_and_voyage"), None)
+    value = next((f.value for f in result.fields if f.key == "vessel_name"), None)
     if not value:
         return warnings
     norm = lambda s: re.sub(r"[^A-Z0-9]", "", s.upper())  # noqa: E731
     if norm(vessel["name"]) not in norm(value):
         return warnings + [
-            f"This Master BL's own Vessel/Voyage ({value!r}) doesn't name "
+            f"This Master BL's own Vessel Name ({value!r}) doesn't name "
             f"{vessel['name']!r}, the vessel it was uploaded under — double-check it "
             "belongs in this Vessel Workspace."
         ]

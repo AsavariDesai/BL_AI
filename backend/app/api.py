@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -208,22 +209,54 @@ def _log(
 
 
 # ------------------------------------------------------------------- auth
+def _lockout_detail(remaining_seconds: float) -> dict:
+    locked_until = (
+        datetime.now(timezone.utc) + timedelta(seconds=remaining_seconds)
+    ).isoformat(timespec="seconds")
+    minutes = max(1, round(remaining_seconds / 60))
+    return {
+        "message": f"Too many failed login attempts. Try again in {minutes} minute(s).",
+        "locked_until": locked_until,
+        "retry_after_seconds": round(remaining_seconds),
+        "max_attempts": auth.MAX_FAILED_LOGIN_ATTEMPTS,
+    }
+
+
 @app.post("/auth/login", response_model=UserOut)
 def login(body: LoginIn, response: Response) -> UserOut:
     row = repo.get_user_by_username(body.username)
     if row is not None:
         remaining = auth.lockout_remaining(row)
         if remaining > 0:
-            raise HTTPException(
-                423,
-                f"Too many failed login attempts. Try again in "
-                f"{max(1, round(remaining / 60))} minute(s).",
-            )
+            raise HTTPException(423, _lockout_detail(remaining))
+        if row["locked_until"]:
+            # The lock has lapsed, but failed_login_attempts is only ever
+            # reset by a successful login (or an admin reset) — left alone,
+            # it's still sitting at/above the threshold from the lockout
+            # that just expired, so a single wrong guess here would
+            # increment it straight past the threshold again and re-lock
+            # for another full window. Clear it so this attempt is judged
+            # fresh ("1 of 3"), the same as any other first wrong attempt.
+            repo.clear_failed_logins(row["id"])
+            row = repo.get_user_by_username(body.username)
     if row is None or not auth.verify_password(body.password, row["password_hash"]):
         # Same generic message either way — this never reveals whether the
         # username itself exists, only (via the 423 above) that it's locked.
         if row is not None:
-            auth.register_failed_login(row["id"])
+            attempts, locked_until_iso = auth.register_failed_login(row["id"])
+            if locked_until_iso:
+                # This exact attempt is the one that crossed the threshold —
+                # report the lockout now instead of waiting for the next
+                # login try to discover it (a 401 here would just look like
+                # an ordinary wrong password, with no sign anything changed).
+                remaining = auth.lockout_remaining({"locked_until": locked_until_iso})
+                raise HTTPException(423, _lockout_detail(remaining))
+            raise HTTPException(401, {
+                "message": "Invalid username or password.",
+                "failed_attempts": attempts,
+                "max_attempts": auth.MAX_FAILED_LOGIN_ATTEMPTS,
+                "remaining_attempts": max(0, auth.MAX_FAILED_LOGIN_ATTEMPTS - attempts),
+            })
         raise HTTPException(401, "Invalid username or password")
     repo.clear_failed_logins(row["id"])
     token = auth.create_session(row["id"])

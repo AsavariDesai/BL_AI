@@ -70,8 +70,28 @@ class _PageTextIndex:
         self.text = "".join(parts).upper()
 
     def find(self, needle: str) -> list[float] | None:
-        idx = self.text.find(needle)
-        if idx < 0:
+        # A short needle (a PAN embedded in its own GSTIN, a 2-letter port
+        # code) can recur as a substring of a longer, unrelated run of
+        # characters elsewhere on the page — the first *standalone* match
+        # (not flanked by other alnum chars) is the one actually meant, so
+        # skip past any embedded hit before falling back to it as a last
+        # resort (still better than no highlight at all).
+        first_idx, pos, chosen = None, 0, None
+        while True:
+            idx = self.text.find(needle, pos)
+            if idx < 0:
+                break
+            if first_idx is None:
+                first_idx = idx
+            end = idx + len(needle)
+            before_ok = idx == 0 or not self.text[idx - 1].isalnum()
+            after_ok = end >= len(self.text) or not self.text[end].isalnum()
+            if before_ok and after_ok:
+                chosen = idx
+                break
+            pos = idx + 1
+        idx = chosen if chosen is not None else first_idx
+        if idx is None:
             return None
         end = idx + len(needle)
         hit = [t for (s, e, t) in self.spans if s < end and e > idx]

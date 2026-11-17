@@ -770,16 +770,16 @@ function VesselWorkspace({ vesselId, onBack, busy: uploadBusy, onUpload }) {
         </div>
         {err && <div className="bar error">{err}</div>}
         {!err && note && <div className="bar ok">{note}</div>}
-        {viewHouseId && (
+        {viewHouseId ? (
           <div className="subbar">
             <span className="subbar-l">House BL{houseDoc ? ` — ${houseDoc.filename}` : ''}</span>
             {houseDoc && <span className={`chip s-${houseDoc.status}`}>{houseDoc.status}</span>}
             {houseDoc?.has_scanned_pages && <span className="chip warn">scanned</span>}
             <span className="grow" />
-            {houseDoc && ['uploaded', 'queued', 'processing', 'error'].includes(houseDoc.status) && (
+            {houseDoc && !['queued', 'processing'].includes(houseDoc.status) && (
               <button
                 className="btn ghost sm"
-                disabled={houseBusy || ['queued', 'processing'].includes(houseDoc.status)}
+                disabled={houseBusy}
                 onClick={onReExtractHouse}
               >
                 ↻ Re-run
@@ -787,6 +787,21 @@ function VesselWorkspace({ vesselId, onBack, busy: uploadBusy, onUpload }) {
             )}
             <button className="btn sm" disabled={!houseDoc || houseBusy || !houseChanged} onClick={onSaveHouse}>
               Save{houseChanged ? ` (${houseChanged})` : ''}
+            </button>
+          </div>
+        ) : (
+          <div className="subbar">
+            <span className="subbar-l">Master BL — {detail.filename}</span>
+            <span className={`chip s-${detail.status}`}>{detail.status}</span>
+            {detail.has_scanned_pages && <span className="chip warn">scanned</span>}
+            <span className="grow" />
+            {!['queued', 'processing'].includes(detail.status) && (
+              <button className="btn ghost sm" disabled={busy} onClick={onReExtractMaster}>
+                ↻ Re-run
+              </button>
+            )}
+            <button className="btn sm" disabled={busy || !masterChanged} onClick={onSaveMaster}>
+              Save{masterChanged ? ` (${masterChanged})` : ''}
             </button>
           </div>
         )}
@@ -831,22 +846,6 @@ function VesselWorkspace({ vesselId, onBack, busy: uploadBusy, onUpload }) {
                         <span className="sb-pill busy">reading…</span>
                       )}
                       <span className="sbcard-grow" />
-                      {!['queued', 'processing'].includes(detail.status) && (
-                        <button
-                          className="btn ghost xs"
-                          disabled={busy}
-                          onClick={(e) => { e.stopPropagation(); onReExtractMaster() }}
-                        >
-                          ↻ Re-run
-                        </button>
-                      )}
-                      <button
-                        className="btn xs"
-                        disabled={busy || !masterChanged}
-                        onClick={(e) => { e.stopPropagation(); onSaveMaster() }}
-                      >
-                        Save{masterChanged ? ` (${masterChanged})` : ''}
-                      </button>
                     </div>
                     {masterFieldsOpen && (
                       <div className="sbcard-body">

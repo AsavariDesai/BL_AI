@@ -102,7 +102,8 @@ def test_one_masterbl_fields(masterbl_path):
     assert "CN>" not in (m["consignee"] or "")  # the hidden box marker is stripped
     assert m["notify_name"] == "SAME AS CONSIGNEE"
     assert m["place_of_receipt"] == "LAEM CHABANG, THAILAND"
-    assert m["vessel_and_voyage"] == "BROOKLYN BRIDGE 0184W"
+    assert m["vessel_name"] == "BROOKLYN BRIDGE"
+    assert m["voyage_number"] == "0184W"
     assert m["port_of_loading"] == "LAEM CHABANG, THAILAND"
     assert m["port_of_discharge"] == "PIPAVAV, INDIA"
     assert m["place_of_delivery"] == "ICD GARHI HARSARU, INDIA"
@@ -119,6 +120,17 @@ def test_one_masterbl_fields(masterbl_path):
     assert m["place_and_date_of_issue"] == "BANGKOK, 23 AUG 2026"
     assert m["freight_terms"] == "FREIGHT COLLECT"
     assert m["carrier"] == "Ocean Network Express Pte. Ltd. (ONE), AS CARRIER"
+
+
+def test_vessel_name_and_voyage_number_have_separate_bboxes(masterbl_path):
+    """The form prints one merged cell ("BROOKLYN BRIDGE 0184W") for both —
+    each must still highlight only its own slice of it, not the whole cell."""
+    res = AnchorExtractor().extract(masterbl_path, doc_id="m1", doc_type="master_bl")
+    vessel = res.get("vessel_name")
+    voyage = res.get("voyage_number")
+    assert vessel.bbox is not None and voyage.bbox is not None
+    assert vessel.bbox != voyage.bbox
+    assert voyage.bbox[0] > vessel.bbox[0]  # the voyage number sits to the right
 
 
 def test_fingerprint_is_scoped_separately_from_export_bl(masterbl_path):

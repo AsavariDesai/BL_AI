@@ -22,6 +22,12 @@ from ._common import _cell_below, _clean, _cy, _find_label, _party_lines, split_
 DOC_TYPE = "master_bl"
 
 _CONTAINER_RE = re.compile(r"\b([A-Z]{4}\d{7})\b")
+# This form prints one merged "Ocean Vessel Voyage No. Flag" cell with both
+# values space-separated, no other delimiter ("BROOKLYN BRIDGE 0184W") — the
+# voyage number is reliably this cell's *last* token, shaped like a short
+# alphanumeric code with at least one digit; everything before it is the
+# vessel's name.
+_VOYAGE_SHAPE_RE = re.compile(r"^[A-Z0-9]{2,10}$")
 _MOVE_RE = re.compile(r"\b(FCL\s*/\s*FCL|CY\s*/\s*CY|CFS\s*/\s*CFS|LCL\s*/\s*LCL)\b", re.I)
 _FREIGHT_RE = re.compile(r"FREIGHT\s+(PREPAID|COLLECT)", re.I)
 _ORIGINALS_RE = re.compile(r"\[\s*(\d+)\s*\]")
@@ -45,6 +51,18 @@ def _strip_box_marker(line: str) -> str:
     return _BOX_MARKER_RE.sub("", line).strip()
 
 
+def _band_tokens(toks: list[Token], anchor: Token, x_lo: float, x_hi: float, *,
+                  y_lo: float = 2.0, y_hi: float = 14.0) -> list[Token]:
+    below = [
+        t for t in toks
+        if anchor.y1 + y_lo <= _cy(t) <= anchor.y1 + y_hi and x_lo <= t.x0 <= x_hi
+    ]
+    if not below:
+        return []
+    y0 = min(t.y0 for t in below)
+    return sorted((t for t in below if abs(t.y0 - y0) <= 4), key=lambda t: t.x0)
+
+
 def _band_below(toks: list[Token], anchor: Token, x_lo: float, x_hi: float, *,
                  y_lo: float = 2.0, y_hi: float = 14.0) -> str:
     """Like _cell_below, but an explicit x range instead of a symmetric
@@ -57,15 +75,13 @@ def _band_below(toks: list[Token], anchor: Token, x_lo: float, x_hi: float, *,
     a fixed column boundary (this form's grid repeats the same x positions
     across every such row) is the only thing that does both.
     """
-    below = [
-        t for t in toks
-        if anchor.y1 + y_lo <= _cy(t) <= anchor.y1 + y_hi and x_lo <= t.x0 <= x_hi
-    ]
-    if not below:
-        return ""
-    y0 = min(t.y0 for t in below)
-    row = sorted((t for t in below if abs(t.y0 - y0) <= 4), key=lambda t: t.x0)
-    return _clean(" ".join(t.text for t in row))
+    return _clean(" ".join(t.text for t in _band_tokens(toks, anchor, x_lo, x_hi,
+                                                          y_lo=y_lo, y_hi=y_hi)))
+
+
+def _tok_bbox(tokens: list[Token]) -> tuple[float, float, float, float]:
+    return (min(t.x0 for t in tokens), min(t.y0 for t in tokens),
+            max(t.x1 for t in tokens), max(t.y1 for t in tokens))
 
 
 def _find_exact_label(toks: list[Token], words: list[str]) -> Token | None:
@@ -101,9 +117,12 @@ def parse(doc: Document) -> dict[str, tuple[str, float]]:
     all_text = " ".join(t.text for p in doc.pages for t in p.tokens)
     out: dict[str, tuple[str, float]] = {}
 
-    def put(k: str, v: str | None, c: float) -> None:
+    def put(k: str, v: str | None, c: float,
+            bbox: tuple[float, float, float, float] | None = None) -> None:
         if v and _clean(v):
             out[k] = (_clean(v), c)
+            if bbox is not None:
+                out[f"__bbox__:{k}"] = (1, bbox)
 
     if re.search(r"SEA\s*WAYBILL", full, re.I):
         put("document_type", "Sea Waybill", 0.85)
@@ -191,7 +210,16 @@ def parse(doc: Document) -> dict[str, tuple[str, float]]:
 
     vessel_lbl = _find_label(toks, "oceanvesselvoyagenoflag")
     if vessel_lbl:
-        put("vessel_and_voyage", _band_below(toks, vessel_lbl[1], 0, _COL1), 0.78)
+        cell = _band_tokens(toks, vessel_lbl[1], 0, _COL1)
+        voy_toks = cell[-1:] if (cell and _VOYAGE_SHAPE_RE.match(cell[-1].text.strip(" :."))
+                                  and any(c.isdigit() for c in cell[-1].text)) else []
+        name_toks = cell[:-1] if voy_toks else cell
+        if name_toks:
+            put("vessel_name", _clean(" ".join(t.text for t in name_toks)), 0.78,
+                bbox=_tok_bbox(name_toks))
+        if voy_toks:
+            put("voyage_number", _clean(" ".join(t.text for t in voy_toks)), 0.78,
+                bbox=_tok_bbox(voy_toks))
 
     pol_lbl = _find_label(toks, "portofloading")
     if pol_lbl:

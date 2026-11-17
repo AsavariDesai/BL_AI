@@ -239,6 +239,58 @@ def _cell_below(toks: list[Token], anchor_end: Token, *,
     return _clean(" ".join(t.text for t in row))
 
 
+def _column_below(toks: list[Token], anchor_end: Token, *,
+                  y_lo: float = 2.0, y_hi: float = 110.0, x_half: float = 48.0,
+                  skip: re.Pattern | None = None) -> str:
+    """Every row stacked beneath ``anchor_end`` within its column, joined
+    line by line — unlike `_cell_below` (single nearest row only), for a
+    label that heads a multi-line table cell (e.g. a "Marks & Nos." column
+    running several lines deep). A line fully matching ``skip`` (e.g. a
+    container-number shape that belongs to a different field sharing the
+    same physical column) is dropped."""
+    cx = _cx(anchor_end)
+    col = [
+        t for t in toks
+        if anchor_end.y1 + y_lo <= _cy(t) <= anchor_end.y1 + y_hi
+        and abs(_cx(t) - cx) <= x_half
+    ]
+    if not col:
+        return ""
+    out: list[str] = []
+    for ln in _lines(col, y_tol=4.0):
+        text = _clean(" ".join(t.text for t in ln))
+        if not text or (skip and skip.fullmatch(text.replace(" ", ""))):
+            continue
+        out.append(text)
+    return _clean(" / ".join(out))
+
+
+def _cell_below_loc(toks: list[Token], anchor_end: Token, *,
+                    y_lo: float = 2.0, y_hi: float = 17.0, x_half: float = 90.0,
+                    ) -> tuple[str, tuple[float, float, float, float] | None]:
+    """Like `_cell_below`, but also returns the bbox of the tokens the value
+    was actually read from — for a short or common value (a port code, a
+    voyage number) that can also occur elsewhere on the page, so deriving
+    its highlight position afterwards by a page-wide text search can land
+    on the wrong occurrence."""
+    cx = _cx(anchor_end)
+    below = [
+        t for t in toks
+        if anchor_end.y1 + y_lo <= _cy(t) <= anchor_end.y1 + y_hi
+        and abs(_cx(t) - cx) <= x_half
+    ]
+    if not below:
+        return "", None
+    y0 = min(t.y0 for t in below)
+    row = sorted((t for t in below if abs(t.y0 - y0) <= 4), key=lambda t: t.x0)
+    text = _clean(" ".join(t.text for t in row))
+    if not text:
+        return "", None
+    bbox = (min(t.x0 for t in row), min(t.y0 for t in row),
+            max(t.x1 for t in row), max(t.y1 for t in row))
+    return text, bbox
+
+
 def _party_lines(toks: list[Token], page_w: float, start_phrases, stop_phrases, *,
                  right: bool, drop_re: re.Pattern | None = None,
                  reach: float = 80.0, mid_frac: float | None = None) -> list[str]:

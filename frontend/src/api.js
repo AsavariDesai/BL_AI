@@ -17,8 +17,22 @@ function f(url, opts) {
 
 async function j(res) {
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(text || `${res.status} ${res.statusText}`)
+    // FastAPI's HTTPException body is {"detail": ...} — detail is a plain
+    // string for most errors, but the login route hands back a structured
+    // object (failed-attempt count, lockout time) for the caller to render
+    // instead of a one-liner.
+    let detail = null
+    try {
+      detail = (await res.json()).detail
+    } catch {
+      /* not JSON — fall through to statusText below */
+    }
+    const message = (detail && typeof detail === 'object' ? detail.message : detail)
+      || `${res.status} ${res.statusText}`
+    const err = new Error(message)
+    err.status = res.status
+    err.detail = detail
+    throw err
   }
   return res.json()
 }
